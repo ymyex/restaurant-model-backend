@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍕 Simple Pizza - Call Recordings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .recording-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .recording-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .audio-controls {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .play-button {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        .download-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .wave {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            background-size: 400% 400%;
+            animation: gradient 3s ease infinite;
+        }
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-lg border-b-4 border-blue-500">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-gradient-to-r from-orange-400 to-red-500 p-3 rounded-full">
+                        <i data-lucide="phone" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-800">🍕 Simple Pizza Restaurant</h1>
+                        <p class="text-gray-600">Call Recordings Dashboard</p>
+                    </div>
+                </div>
+                <div class="bg-green-100 text-green-800 px-4 py-2 rounded-full font-medium">
+                    <i data-lucide="circle" class="w-4 h-4 inline mr-2 fill-current"></i>
+                    System Online
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Total Recordings</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalRecordings">0</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full">
+                        <i data-lucide="headphones" class="w-8 h-8 text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Total Duration</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalDuration">0 min</p>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full">
+                        <i data-lucide="clock" class="w-8 h-8 text-green-600"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600 mb-1">Storage Used</p>
+                        <p class="text-3xl font-bold text-gray-800" id="totalStorage">0 MB</p>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-full">
+                        <i data-lucide="hard-drive" class="w-8 h-8 text-purple-600"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-between flex-wrap gap-4">
+                <div class="flex items-center space-x-4">
+                    <button onclick="loadRecordings()" class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 flex items-center space-x-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <button onclick="downloadAllRecordings()" class="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-2 rounded-lg hover:from-purple-600 hover:to-pink-700 transition-all duration-200 flex items-center space-x-2">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Download All</span>
+                    </button>
+                </div>
+                <div class="text-sm text-gray-500" id="lastUpdated">
+                    Last updated: Never
+                </div>
+            </div>
+        </div>
+
+        <!-- Recordings Grid -->
+        <div id="loadingIndicator" class="text-center py-12">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600">Loading recordings...</p>
+        </div>
+
+        <div id="recordingsContainer" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 hidden">
+        </div>
+
+        <div id="noRecordings" class="text-center py-12 hidden">
+            <div class="bg-gray-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <i data-lucide="headphones" class="w-8 h-8 text-gray-400"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-600 mb-2">No Recordings Found</h3>
+            <p class="text-gray-500">Call recordings will appear here once customers start calling your restaurant.</p>
+        </div>
+    </main>
+
+    <script>
+        let allRecordings = [];
+        let currentAudio = null;
+        let currentPlayButton = null;
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        function extractCallInfo(filename) {
+            // Extract call and recording IDs from filename: recording_CallSid_RecordingSid_timestamp.wav
+            const parts = filename.replace('.wav', '').split('_');
+            if (parts.length >= 3) {
+                return {
+                    callSid: parts[1],
+                    recordingSid: parts[2],
+                    timestamp: parts[3] || ''
+                };
+            }
+            return { callSid: '', recordingSid: '', timestamp: '' };
+        }
+
+        function createRecordingCard(recording) {
+            const callInfo = extractCallInfo(recording.filename);
+            const isGoogleDrive = recording.source === 'googledrive';
+            const storageIcon = isGoogleDrive ? '☁️' : '💾';
+            const storageText = isGoogleDrive ? 'Google Drive' : 'Local Storage';
+            
+            return `
+                <div class="recording-card bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-lg">📞 Call Recording</h3>
+                                <p class="text-blue-100 text-sm">ID: ${callInfo.callSid.substring(0, 8)}...</p>
+                                <p class="text-blue-100 text-xs">${storageIcon} ${storageText}</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-2xl font-bold">${formatFileSize(recording.size)}</div>
+                                <div class="text-blue-100 text-xs">File Size</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <!-- Recording Info -->
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="text-gray-600">Recorded:</span>
+                                    <div class="font-medium text-gray-800">${formatDate(recording.created)}</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">Recording ID:</span>
+                                    <div class="font-medium text-gray-800">${callInfo.recordingSid.substring(0, 8)}...</div>
+                                </div>
+                            </div>
+
+                            <!-- Audio Player -->
+                            <div class="audio-controls rounded-lg p-4 text-white">
+                                <div class="flex items-center justify-between mb-3">
+                                    <button 
+                                        onclick="togglePlayback('${recording.filename}')" 
+                                        class="play-button w-12 h-12 rounded-full flex items-center justify-center hover:scale-105 transition-transform duration-200"
+                                        id="playBtn_${recording.filename}"
+                                    >
+                                        <i data-lucide="play" class="w-6 h-6"></i>
+                                    </button>
+                                    
+                                    <div class="flex-1 mx-4">
+                                        <div class="text-sm mb-2">Call Recording</div>
+                                        <div class="bg-white bg-opacity-20 rounded-full h-2 overflow-hidden cursor-pointer" onclick="seekAudio('${recording.filename}', event)">
+                                            <div class="bg-white h-full transition-all duration-200" style="width: 0%" id="progress_${recording.filename}"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="text-right">
+                                        <div class="text-sm font-mono" id="duration_${recording.filename}">--:--</div>
+                                        <div class="text-xs opacity-75">Duration</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Volume and Speed Controls -->
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center space-x-2">
+                                        <i data-lucide="volume-2" class="w-3 h-3"></i>
+                                        <input type="range" min="0" max="1" step="0.1" value="1" class="w-16 h-1" id="volume_${recording.filename}" onchange="setVolume('${recording.filename}', this.value)">
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span>Speed:</span>
+                                        <select class="bg-transparent text-white text-xs" id="speed_${recording.filename}" onchange="setPlaybackRate('${recording.filename}', this.value)">
+                                            <option value="0.5">0.5x</option>
+                                            <option value="0.75">0.75x</option>
+                                            <option value="1" selected>1x</option>
+                                            <option value="1.25">1.25x</option>
+                                            <option value="1.5">1.5x</option>
+                                            <option value="2">2x</option>
+                                        </select>
+                                    </div>
+                                    <div class="text-white text-opacity-75" id="currentTime_${recording.filename}">0:00</div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex space-x-3">
+                                <button 
+                                    onclick="downloadRecording('${getRecordingId(recording)}')" 
+                                    class="download-button flex-1 text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity duration-200 flex items-center justify-center space-x-2"
+                                >
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span>Download</span>
+                                </button>
+                                
+                                <button 
+                                    onclick="showRecordingDetails('${recording.filename}')" 
+                                    class="border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors duration-200 flex items-center justify-center space-x-2"
+                                >
+                                    <i data-lucide="info" class="w-4 h-4"></i>
+                                    <span>Details</span>
+                                </button>
+                                ${isGoogleDrive ? `
+                                <button 
+                                    onclick="openInGoogleDrive('${recording.webViewLink}')" 
+                                    class="border-2 border-blue-300 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors duration-200 flex items-center justify-center space-x-2"
+                                >
+                                    <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    <span>View in Drive</span>
+                                </button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getRecordingId(recording) {
+            return recording.source === 'googledrive' ? `googledrive://${recording.fileId}` : recording.filename;
+        }
+
+        function getRecordingUrl(recording) {
+            return recording.source === 'googledrive' ? `/recordings/googledrive://${recording.fileId}` : `/recordings/${recording.filename}`;
+        }
+
+        function openInGoogleDrive(webViewLink) {
+            if (webViewLink) {
+                window.open(webViewLink, '_blank');
+            } else {
+                alert('Google Drive link not available');
+            }
+        }
+
+        function togglePlayback(filename) {
+            const playBtn = document.getElementById(`playBtn_${filename}`);
+            
+            // Stop current audio if playing different file
+            if (currentAudio && !currentAudio.src.includes(filename)) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                updatePlayerUI(getCurrentFilename(currentAudio.src), false);
+                currentAudio = null;
+                currentPlayButton = null;
+            }
+            
+            if (!currentAudio || !currentAudio.src.includes(filename)) {
+                // Create new audio instance
+                const recording = allRecordings.find(r => r.filename === filename);
+                const audioUrl = getRecordingUrl(recording);
+                currentAudio = new Audio(audioUrl);
+                currentPlayButton = playBtn;
+                
+                // Event listeners for audio player
+                currentAudio.addEventListener('loadedmetadata', () => {
+                    updateDurationDisplay(filename, currentAudio.duration);
+                });
+                
+                currentAudio.addEventListener('timeupdate', () => {
+                    updateProgress(filename, currentAudio.currentTime, currentAudio.duration);
+                });
+                
+                currentAudio.addEventListener('ended', () => {
+                    updatePlayerUI(filename, false);
+                    currentAudio.currentTime = 0;
+                    updateProgress(filename, 0, currentAudio.duration);
+                });
+                
+                currentAudio.addEventListener('error', (e) => {
+                    console.error('Audio error:', e);
+                    updatePlayerUI(filename, false);
+                    alert('Error playing audio file. Please try again.');
+                });
+                
+                // Start playing
+                currentAudio.play().then(() => {
+                    updatePlayerUI(filename, true);
+                }).catch(e => {
+                    console.error('Play error:', e);
+                    alert('Error playing audio. Please try again.');
+                });
+                
+            } else {
+                // Toggle play/pause
+                if (currentAudio.paused) {
+                    currentAudio.play().then(() => {
+                        updatePlayerUI(filename, true);
+                    });
+                } else {
+                    currentAudio.pause();
+                    updatePlayerUI(filename, false);
+                }
+            }
+        }
+
+        function updatePlayerUI(filename, isPlaying) {
+            const playBtn = document.getElementById(`playBtn_${filename}`);
+            if (playBtn) {
+                playBtn.innerHTML = isPlaying ? 
+                    '<i data-lucide="pause" class="w-6 h-6"></i>' : 
+                    '<i data-lucide="play" class="w-6 h-6"></i>';
+                lucide.createIcons();
+            }
+        }
+
+        function updateDurationDisplay(filename, duration) {
+            if (!isFinite(duration)) return;
+            const minutes = Math.floor(duration / 60);
+            const seconds = Math.floor(duration % 60);
+            const durationElement = document.getElementById(`duration_${filename}`);
+            if (durationElement) {
+                durationElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function updateProgress(filename, currentTime, duration) {
+            if (!isFinite(currentTime) || !isFinite(duration) || duration === 0) return;
+            
+            const progress = (currentTime / duration) * 100;
+            const progressBar = document.getElementById(`progress_${filename}`);
+            const currentTimeElement = document.getElementById(`currentTime_${filename}`);
+            
+            if (progressBar) {
+                progressBar.style.width = `${progress}%`;
+            }
+            
+            if (currentTimeElement) {
+                const minutes = Math.floor(currentTime / 60);
+                const seconds = Math.floor(currentTime % 60);
+                currentTimeElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        function seekAudio(filename, event) {
+            if (!currentAudio || !currentAudio.src.includes(filename)) return;
+            
+            const progressContainer = event.currentTarget;
+            const rect = progressContainer.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const width = rect.width;
+            const percentage = clickX / width;
+            
+            if (isFinite(currentAudio.duration)) {
+                currentAudio.currentTime = percentage * currentAudio.duration;
+            }
+        }
+
+        function setVolume(filename, volume) {
+            if (!currentAudio || !currentAudio.src.includes(filename)) return;
+            currentAudio.volume = parseFloat(volume);
+        }
+
+        function setPlaybackRate(filename, rate) {
+            if (!currentAudio || !currentAudio.src.includes(filename)) return;
+            currentAudio.playbackRate = parseFloat(rate);
+        }
+
+        function getCurrentFilename(src) {
+            return src.split('/').pop();
+        }
+
+        function downloadRecording(recordingId) {
+            const link = document.createElement('a');
+            if (recordingId.startsWith('googledrive://')) {
+                // For Google Drive files, use the server endpoint that handles the redirect
+                link.href = `/recordings/${recordingId}`;
+            } else {
+                // For local files, use direct path
+                link.href = `/recordings/${recordingId}`;
+            }
+            // Extract filename from recording ID for download attribute
+            const filename = recordingId.startsWith('googledrive://') ? 
+                allRecordings.find(r => r.fileId === recordingId.replace('googledrive://', ''))?.filename || 'recording.wav' :
+                recordingId;
+            link.download = filename;
+            link.click();
+        }
+
+        function downloadAllRecordings() {
+            if (allRecordings.length === 0) {
+                alert('No recordings available to download.');
+                return;
+            }
+            
+            allRecordings.forEach(recording => {
+                const recordingId = getRecordingId(recording);
+                setTimeout(() => downloadRecording(recordingId), 100);
+            });
+        }
+
+        function showRecordingDetails(filename) {
+            const recording = allRecordings.find(r => r.filename === filename);
+            const callInfo = extractCallInfo(filename);
+            const storageInfo = recording.source === 'googledrive' ? 'Google Drive' : 'Local Storage';
+            
+            alert(`Recording Details:
+            
+Filename: ${recording.filename}
+Call SID: ${callInfo.callSid}
+Recording SID: ${callInfo.recordingSid}
+File Size: ${formatFileSize(recording.size)}
+Created: ${formatDate(recording.created)}
+Storage: ${storageInfo}
+Path: ${recording.path}`);
+        }
+
+        async function loadRecordings() {
+            document.getElementById('loadingIndicator').classList.remove('hidden');
+            document.getElementById('recordingsContainer').classList.add('hidden');
+            document.getElementById('noRecordings').classList.add('hidden');
+            
+            try {
+                const response = await fetch('/recordings', {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const recordings = await response.json();
+                
+                allRecordings = recordings;
+                
+                if (recordings.length === 0) {
+                    document.getElementById('noRecordings').classList.remove('hidden');
+                } else {
+                    const container = document.getElementById('recordingsContainer');
+                    container.innerHTML = recordings.map(createRecordingCard).join('');
+                    container.classList.remove('hidden');
+                    
+                    // Update stats
+                    document.getElementById('totalRecordings').textContent = recordings.length;
+                    
+                    const totalSize = recordings.reduce((sum, r) => sum + r.size, 0);
+                    document.getElementById('totalStorage').textContent = formatFileSize(totalSize);
+                    
+                    // Initialize Lucide icons
+                    lucide.createIcons();
+                }
+                
+                document.getElementById('lastUpdated').textContent = 
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+                    
+            } catch (error) {
+                console.error('Error loading recordings:', error);
+                document.getElementById('noRecordings').classList.remove('hidden');
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'text-center py-8';
+                errorDiv.innerHTML = `
+                    <div class="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                        <i data-lucide="alert-triangle" class="w-8 h-8 text-red-400"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-red-600 mb-2">Error Loading Recordings</h3>
+                    <p class="text-red-500 mb-4">${error.message}</p>
+                    <button onclick="loadRecordings()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                        Try Again
+                    </button>
+                `;
+                const container = document.getElementById('recordingsContainer');
+                container.innerHTML = '';
+                container.appendChild(errorDiv);
+                container.classList.remove('hidden');
+                document.getElementById('noRecordings').classList.add('hidden');
+                lucide.createIcons();
+            }
+            
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadRecordings();
+        });
+    </script>
+</body>
+</html>
