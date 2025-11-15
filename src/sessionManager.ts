@@ -2,7 +2,7 @@ import { RawData, WebSocket } from "ws";
 import functions, { setSessionId } from "./functionHandlers";
 import { cartStorage, orderStorage } from "./dataStorage";
 import { linkSessionToCallSid } from "./callContext";
-import { getCurrentModel, getCurrentVoice } from "./aiConfig";
+import { getCurrentModel, getVoiceForSession, getCurrentSpeed } from "./aiConfig";
 import { createAIProvider, AIProvider, AIProviderConfig } from "./aiProviders";
 
 // Function to get current system prompt from server
@@ -151,11 +151,15 @@ function tryConnectAIProvider() {
     return;
   }
 
+  const sessionVoice = getVoiceForSession();
+  const speechSpeed = getCurrentSpeed();
+
   const providerConfig: AIProviderConfig = {
     modelConfig: currentModel,
     apiKey,
     instructions: getCurrentSystemPrompt(),
-    voice: getCurrentVoice()
+    voice: sessionVoice,
+    speed: speechSpeed
   };
 
   try {
@@ -163,7 +167,7 @@ function tryConnectAIProvider() {
 
     // Set up event handlers
     session.aiProvider.on('open', () => {
-      console.log(`✅ AI Provider connected: ${currentModel.name}`);
+      console.log(`✅ AI Provider connected: ${currentModel.name} (voice=${sessionVoice}, speed=${speechSpeed})`);
     });
 
     session.aiProvider.on('audio', (audioData: string, itemId?: string) => {

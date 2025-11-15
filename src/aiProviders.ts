@@ -8,6 +8,7 @@ export interface AIProviderConfig {
   apiKey: string;
   instructions: string;
   voice?: string;
+  speed?: number;
 }
 
 export interface FunctionCallData {
@@ -89,12 +90,15 @@ export class OpenAIProvider extends AIProvider {
   private sendSessionUpdate(): void {
     if (!this.ws || !this.connected) return;
 
+    const speechSpeed = typeof this.config.speed === "number" ? this.config.speed : 1.1;
+
     const sessionConfig = {
       type: "session.update",
       session: {
         modalities: ["text", "audio"],
         turn_detection: { type: "server_vad" },
         voice: this.config.voice || "ash",
+        speed: speechSpeed,
         input_audio_transcription: { model: "whisper-1" },
         input_audio_format: this.config.modelConfig.audioFormat.input,
         output_audio_format: this.config.modelConfig.audioFormat.output,

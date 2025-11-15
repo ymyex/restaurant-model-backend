@@ -26,7 +26,13 @@ import {
   getAvailableModels,
   getCurrentVoice,
   setCurrentVoice,
-  AVAILABLE_VOICES
+  AVAILABLE_VOICES,
+  isVoiceRandomizationEnabled,
+  setVoiceRandomizationEnabled,
+  getVoiceRandomizationPool,
+  getCurrentSpeed,
+  setCurrentSpeed,
+  DEFAULT_SPEED
 } from "./aiConfig";
 import {
   getMenuData,
@@ -219,6 +225,10 @@ app.get("/admin/config", (req, res) => {
     defaultConfig: getDefaultSessionConfig(),
     googleDriveEnabled: !!googleDriveStorage,
     twilioEnabled: !!twilioClient,
+    voiceRandomizationEnabled: isVoiceRandomizationEnabled(),
+    randomVoicePool: getVoiceRandomizationPool(),
+    currentSpeed: getCurrentSpeed(),
+    defaultSpeed: DEFAULT_SPEED,
     currentModel: {
       id: `${currentModel.provider}:${currentModel.model}`,
       ...currentModel
@@ -270,21 +280,59 @@ app.post("/admin/config/model", (req, res) => {
 });
 
 app.post("/admin/config/voice", (req, res) => {
-  const { voice } = req.body;
-  if (typeof voice !== 'string') {
-    res.status(400).json({ error: 'Invalid voice selection' });
+  const { voice, randomizeVoices, speed } = req.body as {
+    voice?: string;
+    randomizeVoices?: boolean;
+    speed?: number;
+  };
+
+  if (randomizeVoices !== undefined && typeof randomizeVoices !== "boolean") {
+    res.status(400).json({ error: "randomizeVoices must be a boolean" });
     return;
   }
 
-  if (!setCurrentVoice(voice)) {
-    res.status(400).json({ error: 'Voice not supported' });
-    return;
+  const desiredRandomization =
+    typeof randomizeVoices === "boolean" ? randomizeVoices : isVoiceRandomizationEnabled();
+  setVoiceRandomizationEnabled(desiredRandomization);
+
+  if (!desiredRandomization) {
+    if (typeof voice !== "string") {
+      res.status(400).json({ error: "Voice selection is required when randomization is disabled" });
+      return;
+    }
+    if (!setCurrentVoice(voice)) {
+      res.status(400).json({ error: "Voice not supported" });
+      return;
+    }
+  } else if (typeof voice === "string" && voice.length > 0) {
+    // Allow storing a preferred voice for when randomization is disabled later
+    if (!setCurrentVoice(voice)) {
+      res.status(400).json({ error: "Voice not supported" });
+      return;
+    }
   }
+
+  if (speed !== undefined) {
+    const numericSpeed = Number(speed);
+    if (!setCurrentSpeed(numericSpeed)) {
+      res.status(400).json({ error: "Invalid speed value" });
+      return;
+    }
+  }
+
+  const responseVoice = getCurrentVoice();
+  const speedValue = getCurrentSpeed();
+  const message = desiredRandomization
+    ? "Voice randomization enabled"
+    : `Voice updated to ${responseVoice}`;
 
   res.json({
     success: true,
-    message: `Voice updated to ${voice}`,
-    voice: getCurrentVoice()
+    message,
+    voice: responseVoice,
+    randomizeVoices: isVoiceRandomizationEnabled(),
+    randomVoicePool: getVoiceRandomizationPool(),
+    speed: speedValue
   });
 });
 

@@ -1,6 +1,6 @@
 // AI Configuration for the restaurant assistant
 import functions from "./functionHandlers";
-import { AVAILABLE_MODELS, DEFAULT_MODEL, ModelConfig, getModelById, AIProvider } from "./modelConfig";
+import { AVAILABLE_MODELS, DEFAULT_MODEL, ModelConfig, getModelById } from "./modelConfig";
 
 export const DEFAULT_SYSTEM_PROMPT = `You are a friendly and helpful AI assistant for Simple Pizza Restaurant, a family-owned pizza restaurant. Your role is to help customers browse our menu, place orders, and answer questions about our food.
 
@@ -100,17 +100,25 @@ IMPORTANT REMINDERS:
 
 Remember: Your job is to EXECUTE functions, not just talk about them!`;
 
-export const DEFAULT_VOICE = "ash";
-export const AVAILABLE_VOICES = ["ash", "ballad", "coral", "sage", "verse"] as const;
+export const DEFAULT_VOICE = "cedar";
+export const AVAILABLE_VOICES = ["alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar"] as const;
+export const RANDOM_VOICE_POOL = ["cedar", "marin", "shimmer", "alloy"] as const;
 export type VoiceOption = typeof AVAILABLE_VOICES[number];
+export type RandomVoiceOption = typeof RANDOM_VOICE_POOL[number];
+export const DEFAULT_SPEED = 1.1;
 
 let currentVoice: VoiceOption = DEFAULT_VOICE;
+let voiceRandomizationEnabled = false;
+let currentSpeed = DEFAULT_SPEED;
 
 // Current model configuration (can be changed via admin panel)
 let currentModelConfig: ModelConfig = DEFAULT_MODEL;
 
 export const getCurrentModel = (): ModelConfig => currentModelConfig;
 export const getCurrentVoice = (): VoiceOption => currentVoice;
+export const isVoiceRandomizationEnabled = () => voiceRandomizationEnabled;
+export const getVoiceRandomizationPool = (): readonly RandomVoiceOption[] => RANDOM_VOICE_POOL;
+export const getCurrentSpeed = (): number => currentSpeed;
 
 export const setCurrentModel = (modelId: string): boolean => {
   const model = getModelById(modelId);
@@ -131,11 +139,37 @@ export const setCurrentVoice = (voice: string): boolean => {
   return false;
 };
 
+export const setVoiceRandomizationEnabled = (enabled: boolean): void => {
+  voiceRandomizationEnabled = enabled;
+  console.log(`?? Voice randomization ${enabled ? "enabled" : "disabled"}`);
+};
+
+export const getVoiceForSession = (): VoiceOption => {
+  if (!voiceRandomizationEnabled) {
+    return currentVoice;
+  }
+  const pool = RANDOM_VOICE_POOL;
+  const randomIndex = Math.floor(Math.random() * pool.length);
+  const selectedVoice = pool[randomIndex];
+  console.log(`?? Random voice selected for session: ${selectedVoice}`);
+  return selectedVoice;
+};
+
+export const setCurrentSpeed = (speed: number): boolean => {
+  if (typeof speed !== "number" || !isFinite(speed) || speed <= 0) {
+    return false;
+  }
+  currentSpeed = speed;
+  console.log(`?? Speech speed updated to: ${speed}`);
+  return true;
+};
+
 export const getDefaultSessionConfig = () => {
   return {
     modalities: ["text", "audio"],
     turn_detection: { type: "server_vad" },
     voice: currentVoice,
+    speed: currentSpeed,
     input_audio_transcription: { model: "whisper-1" },
     input_audio_format: "g711_ulaw",
     output_audio_format: "g711_ulaw",
