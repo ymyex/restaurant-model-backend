@@ -425,23 +425,47 @@
                             <i data-lucide="phone" class="w-5 h-5 text-blue-400"></i>
                             <span>Voice Configuration</span>
                         </h3>
-                        <div class="space-y-4">
+                        <div class="space-y-5">
                             <div>
                                 <label class="block text-sm font-medium text-gray-300 mb-2">Voice Model</label>
                                 <select id="voiceSelect" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white">
-                                    <option value="ash">Ash (Default)</option>
-                                    <option value="ballad">Ballad</option>
-                                    <option value="coral">Coral</option>
-                                    <option value="sage">Sage</option>
-                                    <option value="verse">Verse</option>
                                 </select>
+                                <p class="text-xs text-gray-400 mt-2">Default voice used when randomization is disabled.</p>
                             </div>
+
+                            <div class="flex items-start justify-between bg-slate-900/60 border border-slate-700 rounded-lg px-4 py-3">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-200">Randomize Voices</p>
+                                    <p id="voicePoolDescription" class="text-xs text-gray-400">Rotates between cedar, marin, shimmer, and alloy.</p>
+                                </div>
+                                <label class="inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="randomizeVoicesToggle" class="sr-only peer">
+                                    <div class="w-12 h-6 bg-gray-600 rounded-full peer peer-checked:bg-purple-500 transition-colors relative">
+                                        <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-6"></div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-medium text-gray-300">Speech Speed</label>
+                                    <span id="speechSpeedDisplay" class="text-xs text-purple-300 font-semibold">1.10x</span>
+                                </div>
+                                <input type="range" id="speechSpeedInput" min="0.5" max="2" step="0.05" value="1.1" class="w-full accent-purple-400">
+                                <p class="text-xs text-gray-400 mt-1">Higher values make the AI speak faster. Default is 1.10x.</p>
+                            </div>
+
                             <div>
                                 <label class="block text-sm font-medium text-gray-300 mb-2">Input Format</label>
                                 <div class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-400">
                                     G.711 μ-law (8kHz)
                                 </div>
                             </div>
+
+                            <button id="saveVoiceButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i data-lucide="waveform" class="w-4 h-4"></i>
+                                <span>Apply Voice Settings</span>
+                            </button>
                         </div>
                     </div>
                     
@@ -597,14 +621,39 @@
                 document.getElementById('lastUpdated').textContent = 'Just now';
                 
                 const voiceSelect = document.getElementById('voiceSelect');
+                const randomizeToggle = document.getElementById('randomizeVoicesToggle');
+                const speedInput = document.getElementById('speechSpeedInput');
+                const speedDisplay = document.getElementById('speechSpeedDisplay');
+                const poolDescription = document.getElementById('voicePoolDescription');
+
                 if (Array.isArray(config.availableVoices) && config.availableVoices.length) {
                     populateVoiceOptions(config.availableVoices);
                 }
-                if (voiceSelect) {
-                    if (config.defaultConfig.voice) {
-                        voiceSelect.value = config.defaultConfig.voice;
+
+                const currentVoice = config.currentVoice || config.defaultConfig.voice;
+                if (voiceSelect && currentVoice) {
+                    voiceSelect.value = currentVoice;
+                }
+
+                if (randomizeToggle) {
+                    randomizeToggle.checked = !!config.voiceRandomizationEnabled;
+                    toggleVoiceSelectAvailability();
+                }
+
+                const speedValue = typeof config.currentSpeed === 'number'
+                    ? config.currentSpeed
+                    : (config.defaultSpeed || config.defaultConfig.speed || 1.1);
+                if (speedInput) {
+                    speedInput.value = speedValue;
+                }
+                if (speedDisplay) {
+                    speedDisplay.textContent = `${Number(speedValue).toFixed(2)}x`;
+                }
+                if (poolDescription) {
+                    if (Array.isArray(config.randomVoicePool) && config.randomVoicePool.length) {
+                        poolDescription.textContent = `Rotates between ${config.randomVoicePool.join(', ')}`;
                     } else {
-                        config.defaultConfig.voice = voiceSelect.value;
+                        poolDescription.textContent = 'Rotates between cedar, marin, shimmer, and alloy.';
                     }
                 }
                 
@@ -936,11 +985,16 @@
             if (!select) return;
 
             const labels = {
-                ash: 'Ash (Default)',
+                alloy: 'Alloy',
+                ash: 'Ash',
                 ballad: 'Ballad',
                 coral: 'Coral',
+                echo: 'Echo',
                 sage: 'Sage',
-                verse: 'Verse'
+                shimmer: 'Shimmer',
+                verse: 'Verse',
+                marin: 'Marin',
+                cedar: 'Cedar'
             };
 
             select.innerHTML = '';
@@ -957,6 +1011,22 @@
                 : voices[0];
 
             select.value = desiredVoice;
+        }
+
+        function toggleVoiceSelectAvailability() {
+            const randomizeToggle = document.getElementById('randomizeVoicesToggle');
+            const select = document.getElementById('voiceSelect');
+            if (!select || !randomizeToggle) return;
+            select.disabled = randomizeToggle.checked;
+            select.classList.toggle('opacity-60', randomizeToggle.checked);
+        }
+
+        function updateSpeedDisplay() {
+            const input = document.getElementById('speechSpeedInput');
+            const label = document.getElementById('speechSpeedDisplay');
+            if (!input || !label) return;
+            const value = parseFloat(input.value) || 1.1;
+            label.textContent = `${value.toFixed(2)}x`;
         }
         
         function setupEventListeners() {
@@ -993,13 +1063,29 @@
             document.getElementById('saveModelButton').addEventListener('click', saveModel);
 
             const voiceSelect = document.getElementById('voiceSelect');
+            const randomizeToggle = document.getElementById('randomizeVoicesToggle');
+            const speedInput = document.getElementById('speechSpeedInput');
+            const saveVoiceButton = document.getElementById('saveVoiceButton');
+
             if (voiceSelect) {
-                voiceSelect.addEventListener('change', (e) => {
-                    const newVoice = e.target.value;
-                    if (newVoice) {
-                        updateVoice(newVoice);
-                    }
+                voiceSelect.addEventListener('change', () => {
+                    currentConfig.defaultConfig = currentConfig.defaultConfig || {};
+                    currentConfig.defaultConfig.voice = voiceSelect.value;
                 });
+            }
+
+            if (randomizeToggle) {
+                randomizeToggle.addEventListener('change', () => {
+                    toggleVoiceSelectAvailability();
+                });
+            }
+
+            if (speedInput) {
+                speedInput.addEventListener('input', updateSpeedDisplay);
+            }
+
+            if (saveVoiceButton) {
+                saveVoiceButton.addEventListener('click', updateVoice);
             }
 
             const functionOverlay = document.getElementById('functionEditorOverlay');
@@ -1212,12 +1298,39 @@
             }
         }
 
-        async function updateVoice(newVoice) {
+        async function updateVoice() {
             const select = document.getElementById('voiceSelect');
-            if (!select || !newVoice) return;
+            const randomizeToggle = document.getElementById('randomizeVoicesToggle');
+            const speedInput = document.getElementById('speechSpeedInput');
+            const speedDisplay = document.getElementById('speechSpeedDisplay');
+            const saveButton = document.getElementById('saveVoiceButton');
 
-            const previousVoice = currentConfig.defaultConfig?.voice || select.value;
-            select.disabled = true;
+            if (!randomizeToggle || !speedInput || !saveButton) return;
+
+            const randomizeVoices = randomizeToggle.checked;
+            const voice = select ? select.value : '';
+            const speed = parseFloat(speedInput.value) || 1.1;
+
+            if (!randomizeVoices && !voice) {
+                showMessage('Select a voice or enable randomization.', 'error');
+                return;
+            }
+
+            const payload = {
+                randomizeVoices,
+                speed,
+                ...(randomizeVoices ? {} : { voice })
+            };
+
+            const originalContent = saveButton.innerHTML;
+            saveButton.innerHTML = `
+                <svg class="w-4 h-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4A8 8 0 104 12z"></path>
+                </svg>
+                <span>Applying...</span>
+            `;
+            saveButton.disabled = true;
 
             try {
                 const response = await fetch('/admin/config/voice', {
@@ -1225,7 +1338,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ voice: newVoice })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
@@ -1234,17 +1347,34 @@
                     throw new Error(data.error || 'Failed to update voice');
                 }
 
+                currentConfig.voiceRandomizationEnabled = !!data.randomizeVoices;
+                currentConfig.currentSpeed = data.speed || speed;
+                currentConfig.randomVoicePool = data.randomVoicePool || currentConfig.randomVoicePool || [];
+                currentConfig.currentVoice = data.voice || voice;
                 currentConfig.defaultConfig = currentConfig.defaultConfig || {};
-                currentConfig.defaultConfig.voice = data.voice || newVoice;
-                showMessage(data.message || `Voice updated to ${data.voice || newVoice}`, 'success');
+                currentConfig.defaultConfig.voice = currentConfig.currentVoice;
+
+                if (select && data.voice) {
+                    select.value = data.voice;
+                }
+                if (speedDisplay) {
+                    speedDisplay.textContent = `${(data.speed || speed).toFixed(2)}x`;
+                }
+                if (data.randomVoicePool && data.randomVoicePool.length) {
+                    const desc = document.getElementById('voicePoolDescription');
+                    if (desc) {
+                        desc.textContent = `Rotates between ${data.randomVoicePool.join(', ')}`;
+                    }
+                }
+
+                toggleVoiceSelectAvailability();
+                showMessage(data.message || 'Voice configuration updated', 'success');
             } catch (error) {
                 console.error('Failed to update voice:', error);
-                showMessage('Failed to update voice', 'error');
-                if (previousVoice) {
-                    select.value = previousVoice;
-                }
+                showMessage(error.message || 'Failed to update voice', 'error');
             } finally {
-                select.disabled = false;
+                saveButton.innerHTML = originalContent;
+                saveButton.disabled = false;
             }
         }
 
