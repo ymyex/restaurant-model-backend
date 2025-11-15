@@ -1,4 +1,27 @@
-export const MENU_DATA = {
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+
+export interface MenuItem {
+    itemId: string;
+    name: string;
+    description?: string;
+    category: string;
+    prices?: Record<string, number>;
+    price?: number;
+}
+
+export interface MenuData {
+    pizzas: MenuItem[];
+    appetizers: MenuItem[];
+    drinks: MenuItem[];
+    desserts: MenuItem[];
+    toppings: string[];
+}
+
+const MENU_CONFIG_DIR = join(__dirname, "../config");
+const MENU_CONFIG_PATH = join(MENU_CONFIG_DIR, "menu-data.json");
+
+const DEFAULT_MENU_DATA: MenuData = {
     pizzas: [
         {
             itemId: "pizza_margherita",
@@ -204,30 +227,143 @@ export const MENU_DATA = {
     ]
 };
 
+function cloneMenuData(data: MenuData): MenuData {
+    return JSON.parse(JSON.stringify(data));
+}
+
+function ensureDirectoryExists() {
+    if (!existsSync(MENU_CONFIG_DIR)) {
+        mkdirSync(MENU_CONFIG_DIR, { recursive: true });
+    }
+}
+
+function loadMenuDataFromFile(): MenuData | null {
+    try {
+        if (!existsSync(MENU_CONFIG_PATH)) {
+            return null;
+        }
+        const raw = readFileSync(MENU_CONFIG_PATH, "utf-8");
+        if (!raw.trim()) return null;
+        const parsed = JSON.parse(raw);
+        if (isValidMenuData(parsed)) {
+            return sanitizeMenuData(parsed);
+        }
+    } catch (error) {
+        console.error("Failed to load custom menu data:", error);
+    }
+    return null;
+}
+
+function persistMenuData(data: MenuData) {
+    try {
+        ensureDirectoryExists();
+        writeFileSync(MENU_CONFIG_PATH, JSON.stringify(data, null, 2), "utf-8");
+    } catch (error) {
+        console.error("Failed to persist menu data:", error);
+    }
+}
+
+function sanitizeMenuItem(item: any, category: string): MenuItem | null {
+    if (!item || typeof item !== "object") return null;
+    const { itemId, name } = item;
+    if (!itemId || !name) return null;
+    const sanitized: MenuItem = {
+        itemId: String(itemId),
+        name: String(name),
+        description: item.description ? String(item.description) : undefined,
+        category: item.category ? String(item.category) : category.replace(/s$/, ""),
+    };
+    if (item.prices && typeof item.prices === "object") {
+        sanitized.prices = Object.entries(item.prices).reduce<Record<string, number>>((acc, [size, price]) => {
+            const numeric = Number(price);
+            if (!isNaN(numeric)) acc[String(size)] = numeric;
+            return acc;
+        }, {});
+    }
+    if (item.price !== undefined) {
+        const numeric = Number(item.price);
+        sanitized.price = isNaN(numeric) ? undefined : numeric;
+    }
+    return sanitized;
+}
+
+function sanitizeMenuData(data: Partial<MenuData>): MenuData {
+    const categories: Array<keyof MenuData> = ["pizzas", "appetizers", "drinks", "desserts"];
+    const sanitized: MenuData = {
+        pizzas: [],
+        appetizers: [],
+        drinks: [],
+        desserts: [],
+        toppings: Array.isArray(data.toppings) ? data.toppings.filter((t) => typeof t === "string") : [],
+    };
+
+    categories.forEach((category) => {
+        const fallbackCategoryName =
+            category === "pizzas" ? "pizza" : category === "desserts" ? "dessert" : category.slice(0, -1);
+        const source = Array.isArray((data as any)[category]) ? (data as any)[category] : [];
+        sanitized[category] = source
+            .map((item) => sanitizeMenuItem(item, fallbackCategoryName))
+            .filter((item): item is MenuItem => !!item);
+    });
+
+    return sanitized;
+}
+
+export function isValidMenuData(value: any): value is MenuData {
+    if (!value || typeof value !== "object") return false;
+    const categories = ["pizzas", "appetizers", "drinks", "desserts"];
+    if (!Array.isArray((value as any).toppings)) return false;
+    return categories.every((category) => Array.isArray((value as any)[category]));
+}
+
+let menuData: MenuData = loadMenuDataFromFile() ?? cloneMenuData(DEFAULT_MENU_DATA);
+
+export function getMenuData(): MenuData {
+    return cloneMenuData(menuData);
+}
+
+export function getDefaultMenuData(): MenuData {
+    return cloneMenuData(DEFAULT_MENU_DATA);
+}
+
+export function setMenuData(newData: MenuData): MenuData {
+    menuData = sanitizeMenuData(newData);
+    persistMenuData(menuData);
+    return getMenuData();
+}
+
+export function resetMenuData(): MenuData {
+    menuData = cloneMenuData(DEFAULT_MENU_DATA);
+    persistMenuData(menuData);
+    return getMenuData();
+}
+
 // Helper functions to work with menu data
 export const getAllMenuItems = () => {
+    const data = getMenuData();
     return [
-        ...MENU_DATA.pizzas,
-        ...MENU_DATA.appetizers,
-        ...MENU_DATA.drinks,
-        ...MENU_DATA.desserts
+        ...data.pizzas,
+        ...data.appetizers,
+        ...data.drinks,
+        ...data.desserts
     ];
 };
 
 export const getMenuByCategory = (category: string) => {
+    const data = getMenuData();
     switch (category.toLowerCase()) {
         case 'pizza':
         case 'pizzas':
-            return MENU_DATA.pizzas;
+            return data.pizzas;
         case 'appetizer':
         case 'appetizers':
-            return MENU_DATA.appetizers;
+            return data.appetizers;
         case 'drink':
         case 'drinks':
-            return MENU_DATA.drinks;
+            return data.drinks;
         case 'dessert':
         case 'desserts':
-            return MENU_DATA.desserts;
+            return data.desserts;
         default:
             return [];
     }

@@ -18,7 +18,7 @@ import functions, { updateFunctionSchemaDefinition, resetFunctionSchemaDefinitio
 import { cartStorage, orderStorage } from "./dataStorage";
 import { setCallParticipantsForCallSid } from "./callContext";
 import { createGoogleDriveStorage, GoogleDriveStorage } from "./googleDriveStorage";
-import { 
+import {
   getDefaultSessionConfig, 
   DEFAULT_SYSTEM_PROMPT, 
   getCurrentModel, 
@@ -28,6 +28,13 @@ import {
   setCurrentVoice,
   AVAILABLE_VOICES
 } from "./aiConfig";
+import {
+  getMenuData,
+  getDefaultMenuData,
+  isValidMenuData,
+  setMenuData,
+  resetMenuData
+} from "./menuData";
 import { FunctionSchema } from "./types";
 
 dotenv.config();
@@ -343,6 +350,33 @@ app.delete("/admin/functions/:name", (req, res) => {
   }
 
   res.json({ success: true, function: reset });
+});
+
+// Admin menu data routes
+app.get("/admin/menu", (req, res) => {
+  res.json({
+    success: true,
+    menu: getMenuData(),
+    defaultMenu: getDefaultMenuData()
+  });
+});
+
+app.post("/admin/menu", (req, res) => {
+  const { menu } = req.body ?? {};
+  if (!menu || !isValidMenuData(menu)) {
+    res.status(400).json({ error: "Menu payload must include pizzas, appetizers, drinks, desserts, and toppings" });
+    return;
+  }
+
+  const updated = setMenuData(menu);
+  console.log("?? Menu data updated via admin panel");
+  res.json({ success: true, menu: updated });
+});
+
+app.delete("/admin/menu", (req, res) => {
+  const reset = resetMenuData();
+  console.log("?? Menu data reset to default via admin panel");
+  res.json({ success: true, menu: reset });
 });
 
 // New endpoint to list available tools (schemas)

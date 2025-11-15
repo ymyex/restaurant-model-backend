@@ -231,6 +231,10 @@
                         <i data-lucide="cpu" class="w-4 h-4 inline mr-2"></i>
                         AI Functions
                     </button>
+                    <button class="tab-button font-medium text-sm text-gray-400 hover:text-gray-300" data-tab="menu-tab">
+                        <i data-lucide="pizza" class="w-4 h-4 inline mr-2"></i>
+                        Menu Data
+                    </button>
                     <button class="tab-button font-medium text-sm text-gray-400 hover:text-gray-300" data-tab="settings-tab">
                         <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i>
                         Settings
@@ -284,15 +288,70 @@
                         <h2 class="text-2xl font-bold text-white mb-2">AI Function Capabilities</h2>
                         <p class="text-gray-400">Available functions that the AI can call to process orders</p>
                     </div>
-                    <div class="bg-green-500/20 text-green-400 px-4 py-2 rounded-lg flex items-center space-x-2">
-                        <i data-lucide="shield-check" class="w-4 h-4"></i>
-                        <span class="font-medium">Read Only</span>
+                    <div class="bg-blue-500/20 text-blue-300 px-4 py-2 rounded-lg flex items-center space-x-2">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                        <span class="font-medium">Click a card to edit</span>
                     </div>
                 </div>
                 
                 <div id="functionsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Functions will be loaded here -->
                 </div>
+            </div>
+
+            <!-- Menu Data Tab -->
+            <div id="menu-tab" class="tab-content p-6">
+                <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white mb-2">Menu Data</h2>
+                        <p class="text-gray-400">Update pizzas, appetizers, drinks, desserts, and toppings in one place</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button id="resetMenuButton" class="bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
+                            <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
+                            <span>Reset to Default</span>
+                        </button>
+                        <button id="saveMenuButton" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 neon-glow">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span>Save Menu</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="holographic-card rounded-lg p-6">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="bg-blue-500/20 text-blue-300 p-2 rounded-lg">
+                                <i data-lucide="info" class="w-5 h-5"></i>
+                            </div>
+                            <h3 class="text-white font-semibold text-lg">How it works</h3>
+                        </div>
+                        <p class="text-gray-300 text-sm">Edit the JSON schema to update menu items. Each category (<span class="text-white">pizzas, appetizers, drinks, desserts</span>) must be an array of objects with <span class="text-white">itemId</span> and <span class="text-white">name</span>. Include <span class="text-white">prices</span> or <span class="text-white">price</span> fields as needed.</p>
+                    </div>
+                    <div class="holographic-card rounded-lg p-6">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="bg-purple-500/20 text-purple-300 p-2 rounded-lg">
+                                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            </div>
+                            <h3 class="text-white font-semibold text-lg">Live updates</h3>
+                        </div>
+                        <p class="text-gray-300 text-sm">Changes take effect immediately for the AI assistant and function handlers. Use reset to restore the built-in sample data.</p>
+                    </div>
+                    <div class="holographic-card rounded-lg p-6">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="bg-emerald-500/20 text-emerald-300 p-2 rounded-lg">
+                                <i data-lucide="shield" class="w-5 h-5"></i>
+                            </div>
+                            <h3 class="text-white font-semibold text-lg">Validation</h3>
+                        </div>
+                        <p class="text-gray-300 text-sm">We validate that all categories and the toppings array exist before saving. Any JSON errors will be surfaced below the editor.</p>
+                    </div>
+                </div>
+
+                <div class="editor-container mb-4">
+                    <div id="menuEditor" class="min-h-[28rem]"></div>
+                </div>
+                <p id="menuEditorError" class="hidden text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2"></p>
             </div>
 
             <!-- Settings Tab -->
@@ -476,14 +535,18 @@
     <script>
         // Initialize
         let editor;
+        let menuEditor;
         let currentConfig = {};
         let currentFunctions = [];
         let activeFunction = null;
         let functionEditorBusy = false;
+        let menuEditorBusy = false;
+        let menuDataDefault = null;
         
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
             initializeEditor();
+            initializeMenuEditor();
             loadConfiguration();
             setupEventListeners();
         });
@@ -498,6 +561,19 @@
                 showGutter: true,
                 highlightActiveLine: true,
                 wrap: true
+            });
+        }
+
+        function initializeMenuEditor() {
+            menuEditor = ace.edit("menuEditor");
+            menuEditor.setTheme("ace/theme/tomorrow_night");
+            menuEditor.session.setMode("ace/mode/json");
+            menuEditor.setOptions({
+                fontSize: 13,
+                showLineNumbers: true,
+                showGutter: true,
+                highlightActiveLine: true,
+                wrap: true,
             });
         }
         
@@ -537,6 +613,8 @@
                 
                 // Load AI models
                 loadAIModels(config.currentModel, config.availableModels || []);
+
+                await loadMenuDataEditor();
                 
                 // Update Google Drive status
                 const driveStatus = document.getElementById('driveStatus');
@@ -620,6 +698,28 @@
             });
             
             lucide.createIcons();
+        }
+
+        async function loadMenuDataEditor() {
+            if (!menuEditor) return;
+            setMenuEditorBusy(true);
+            try {
+                const response = await fetch('/admin/menu');
+                const data = await response.json();
+                if (!response.ok || !data.menu) {
+                    throw new Error(data.error || 'Failed to load menu data');
+                }
+                menuDataDefault = data.defaultMenu || null;
+                const editorValue = JSON.stringify(data.menu || data.defaultMenu || {}, null, 2);
+                menuEditor.setValue(editorValue);
+                menuEditor.clearSelection();
+                hideMenuEditorError();
+            } catch (error) {
+                console.error('Failed to load menu data:', error);
+                showMenuEditorError(error.message || 'Failed to load menu data');
+            } finally {
+                setMenuEditorBusy(false);
+            }
         }
 
         function openFunctionEditor(func) {
@@ -744,6 +844,92 @@
             }
         }
 
+        function showMenuEditorError(message) {
+            const el = document.getElementById('menuEditorError');
+            if (!el) return;
+            el.textContent = message;
+            el.classList.remove('hidden');
+        }
+
+        function hideMenuEditorError() {
+            const el = document.getElementById('menuEditorError');
+            if (!el) return;
+            el.textContent = '';
+            el.classList.add('hidden');
+        }
+
+        function setMenuEditorBusy(isBusy) {
+            menuEditorBusy = isBusy;
+            const saveBtn = document.getElementById('saveMenuButton');
+            const resetBtn = document.getElementById('resetMenuButton');
+            if (saveBtn) {
+                saveBtn.disabled = isBusy;
+                saveBtn.classList.toggle('opacity-60', isBusy);
+            }
+            if (resetBtn) {
+                resetBtn.disabled = isBusy;
+                resetBtn.classList.toggle('opacity-60', isBusy);
+            }
+        }
+
+        async function saveMenuData() {
+            if (menuEditorBusy || !menuEditor) return;
+            hideMenuEditorError();
+            let parsed;
+            try {
+                const raw = menuEditor.getValue();
+                parsed = JSON.parse(raw);
+            } catch (error) {
+                showMenuEditorError(`Menu JSON invalid: ${error.message}`);
+                return;
+            }
+
+            setMenuEditorBusy(true);
+            try {
+                const response = await fetch('/admin/menu', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ menu: parsed }),
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to save menu data');
+                }
+                showMessage('Menu updated successfully', 'success');
+                await loadMenuDataEditor();
+            } catch (error) {
+                console.error('Failed to save menu data:', error);
+                showMenuEditorError(error.message || 'Failed to save menu data');
+            } finally {
+                setMenuEditorBusy(false);
+            }
+        }
+
+        async function resetMenuDataToDefault() {
+            if (menuEditorBusy) return;
+            if (!confirm('Reset the menu to the default sample data? This will overwrite any custom changes.')) {
+                return;
+            }
+            hideMenuEditorError();
+            setMenuEditorBusy(true);
+            try {
+                const response = await fetch('/admin/menu', { method: 'DELETE' });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to reset menu data');
+                }
+                showMessage('Menu reset to default', 'success');
+                await loadMenuDataEditor();
+            } catch (error) {
+                console.error('Failed to reset menu data:', error);
+                showMenuEditorError(error.message || 'Failed to reset menu data');
+            } finally {
+                setMenuEditorBusy(false);
+            }
+        }
+
         function populateVoiceOptions(voices) {
             if (!Array.isArray(voices) || voices.length === 0) return;
             const select = document.getElementById('voiceSelect');
@@ -823,6 +1009,15 @@
                         closeFunctionEditor();
                     }
                 });
+            }
+
+            const saveMenuBtn = document.getElementById('saveMenuButton');
+            if (saveMenuBtn) {
+                saveMenuBtn.addEventListener('click', saveMenuData);
+            }
+            const resetMenuBtn = document.getElementById('resetMenuButton');
+            if (resetMenuBtn) {
+                resetMenuBtn.addEventListener('click', resetMenuDataToDefault);
             }
         }
         
