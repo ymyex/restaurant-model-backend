@@ -287,8 +287,10 @@ function sanitizeMenuItem(item: any, category: string): MenuItem | null {
     return sanitized;
 }
 
+type MenuCategoryKey = "pizzas" | "appetizers" | "drinks" | "desserts";
+
 function sanitizeMenuData(data: Partial<MenuData>): MenuData {
-    const categories: Array<keyof MenuData> = ["pizzas", "appetizers", "drinks", "desserts"];
+    const categories: MenuCategoryKey[] = ["pizzas", "appetizers", "drinks", "desserts"];
     const sanitized: MenuData = {
         pizzas: [],
         appetizers: [],
@@ -302,9 +304,10 @@ function sanitizeMenuData(data: Partial<MenuData>): MenuData {
             category === "pizzas" ? "pizza" : category === "desserts" ? "dessert" : category.slice(0, -1);
         const rawSource = (data as Record<string, unknown>)[category];
         const source: unknown[] = Array.isArray(rawSource) ? rawSource : [];
-        sanitized[category] = source
+        const cleaned = source
             .map((item: unknown) => sanitizeMenuItem(item, fallbackCategoryName))
             .filter((item): item is MenuItem => !!item);
+        sanitized[category] = cleaned;
     });
 
     return sanitized;
