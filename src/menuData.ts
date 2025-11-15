@@ -300,9 +300,10 @@ function sanitizeMenuData(data: Partial<MenuData>): MenuData {
     categories.forEach((category) => {
         const fallbackCategoryName =
             category === "pizzas" ? "pizza" : category === "desserts" ? "dessert" : category.slice(0, -1);
-        const source = Array.isArray((data as any)[category]) ? (data as any)[category] : [];
+        const rawSource = (data as Record<string, unknown>)[category];
+        const source: unknown[] = Array.isArray(rawSource) ? rawSource : [];
         sanitized[category] = source
-            .map((item) => sanitizeMenuItem(item, fallbackCategoryName))
+            .map((item: unknown) => sanitizeMenuItem(item, fallbackCategoryName))
             .filter((item): item is MenuItem => !!item);
     });
 
