@@ -14,7 +14,7 @@ import {
   getCurrentSessionId,
   setCurrentSystemPromptGetter,
 } from "./sessionManager";
-import functions from "./functionHandlers";
+import functions, { updateFunctionSchemaDefinition, resetFunctionSchemaDefinition } from "./functionHandlers";
 import { cartStorage, orderStorage } from "./dataStorage";
 import { setCallParticipantsForCallSid } from "./callContext";
 import { createGoogleDriveStorage, GoogleDriveStorage } from "./googleDriveStorage";
@@ -28,6 +28,7 @@ import {
   setCurrentVoice,
   AVAILABLE_VOICES
 } from "./aiConfig";
+import { FunctionSchema } from "./types";
 
 dotenv.config();
 
@@ -278,6 +279,70 @@ app.post("/admin/config/voice", (req, res) => {
     message: `Voice updated to ${voice}`,
     voice: getCurrentVoice()
   });
+});
+
+app.put("/admin/functions/:name", (req, res) => {
+  const functionName = req.params.name;
+  if (!functionName) {
+    res.status(400).json({ error: "Function name is required" });
+    return;
+  }
+
+  const { description, parameters } = req.body as {
+    description?: string;
+    parameters?: FunctionSchema["parameters"];
+  };
+
+  const updates: Partial<FunctionSchema> = {};
+
+  if (description !== undefined) {
+    if (typeof description !== "string") {
+      res.status(400).json({ error: "Description must be a string" });
+      return;
+    }
+    updates.description = description;
+  }
+
+  if (parameters !== undefined) {
+    if (typeof parameters !== "object" || parameters === null || Array.isArray(parameters)) {
+      res.status(400).json({ error: "Parameters must be an object" });
+      return;
+    }
+    updates.parameters = parameters;
+  }
+
+  if (updates.description === undefined && updates.parameters === undefined) {
+    res.status(400).json({ error: "No updates provided" });
+    return;
+  }
+
+  const updated = updateFunctionSchemaDefinition(functionName, {
+    description: updates.description,
+    parameters: updates.parameters,
+  });
+
+  if (!updated) {
+    res.status(404).json({ error: "Function not found" });
+    return;
+  }
+
+  res.json({ success: true, function: updated });
+});
+
+app.delete("/admin/functions/:name", (req, res) => {
+  const functionName = req.params.name;
+  if (!functionName) {
+    res.status(400).json({ error: "Function name is required" });
+    return;
+  }
+
+  const reset = resetFunctionSchemaDefinition(functionName);
+  if (!reset) {
+    res.status(404).json({ error: "Function not found" });
+    return;
+  }
+
+  res.json({ success: true, function: reset });
 });
 
 // New endpoint to list available tools (schemas)

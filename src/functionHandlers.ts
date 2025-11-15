@@ -1,4 +1,6 @@
-import { FunctionHandler } from "./types";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { join } from "path";
+import { FunctionHandler, FunctionSchema } from "./types";
 import { getAllMenuItems, getMenuByCategory, getMenuItemById } from "./menuData";
 import { cartStorage, orderStorage, CartItem, CustomerInfo, PaymentMethod } from "./dataStorage";
 import { sendSms } from "./sms";
@@ -13,6 +15,12 @@ let currentSessionId = "default_session";
 export function setSessionId(sessionId: string) {
   currentSessionId = sessionId;
 }
+
+const FUNCTION_CONFIG_DIR = join(__dirname, "../config");
+const FUNCTION_CONFIG_PATH = join(FUNCTION_CONFIG_DIR, "function-schemas.json");
+
+const functionSchemaOverrides: Record<string, FunctionSchema> = loadFunctionSchemaOverrides();
+const defaultFunctionSchemas = new Map<string, FunctionSchema>();
 
 // Restaurant Menu Functions
 functions.push({
@@ -478,6 +486,119 @@ functions.push({
     });
   },
 });
+
+captureDefaultFunctionSchemas();
+applyFunctionSchemaOverrides();
+
+type FunctionSchemaUpdate = Partial<Pick<FunctionSchema, "description" | "parameters">>;
+
+export function updateFunctionSchemaDefinition(
+  name: string,
+  updates: FunctionSchemaUpdate
+): FunctionSchema | null {
+  const handler = functions.find((fn) => fn.schema.name === name);
+  if (!handler) {
+    return null;
+  }
+
+  if (updates.description !== undefined) {
+    handler.schema.description = updates.description;
+  }
+
+  if (updates.parameters !== undefined) {
+    handler.schema.parameters = cloneSchema(updates.parameters);
+  }
+
+  functionSchemaOverrides[name] = cloneSchema(handler.schema);
+  persistFunctionSchemaOverrides();
+
+  return handler.schema;
+}
+
+export function resetFunctionSchemaDefinition(name: string): FunctionSchema | null {
+  const handler = functions.find((fn) => fn.schema.name === name);
+  const defaultSchema = defaultFunctionSchemas.get(name);
+  if (!handler || !defaultSchema) {
+    return null;
+  }
+
+  handler.schema.name = defaultSchema.name;
+  handler.schema.type = defaultSchema.type;
+  handler.schema.description = defaultSchema.description;
+  handler.schema.parameters = cloneSchema(defaultSchema.parameters);
+
+  delete functionSchemaOverrides[name];
+  persistFunctionSchemaOverrides();
+
+  return handler.schema;
+}
+
+function captureDefaultFunctionSchemas() {
+  functions.forEach((fn) => {
+    defaultFunctionSchemas.set(fn.schema.name, cloneSchema(fn.schema));
+  });
+}
+
+function applyFunctionSchemaOverrides() {
+  functions.forEach((fn) => {
+    const override = functionSchemaOverrides[fn.schema.name];
+    if (!override) return;
+
+    if (override.description !== undefined) {
+      fn.schema.description = override.description;
+    }
+    if (override.parameters !== undefined) {
+      fn.schema.parameters = cloneSchema(override.parameters);
+    }
+    if (override.type !== undefined) {
+      fn.schema.type = override.type;
+    }
+  });
+}
+
+function cloneSchema<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function loadFunctionSchemaOverrides(): Record<string, FunctionSchema> {
+  try {
+    if (!existsSync(FUNCTION_CONFIG_PATH)) {
+      return {};
+    }
+    const raw = readFileSync(FUNCTION_CONFIG_PATH, "utf-8");
+    if (!raw.trim()) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) {
+      return {};
+    }
+
+    return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, FunctionSchema>>(
+      (acc, [name, schema]) => {
+        if (schema && typeof schema === "object") {
+          acc[name] = cloneSchema(schema as FunctionSchema);
+        }
+        return acc;
+      },
+      {}
+    );
+  } catch (error) {
+    console.error("Failed to load function schema overrides:", error);
+    return {};
+  }
+}
+
+function persistFunctionSchemaOverrides() {
+  try {
+    if (!existsSync(FUNCTION_CONFIG_DIR)) {
+      mkdirSync(FUNCTION_CONFIG_DIR, { recursive: true });
+    }
+    writeFileSync(FUNCTION_CONFIG_PATH, JSON.stringify(functionSchemaOverrides, null, 2), "utf-8");
+  } catch (error) {
+    console.error("Failed to persist function schema overrides:", error);
+  }
+}
 
 export default functions;
 

@@ -428,10 +428,58 @@
         </div>
     </div>
 
+    <!-- Function Editor Modal -->
+    <div id="functionEditorOverlay" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 hidden">
+        <div class="holographic-card rounded-2xl w-full max-w-3xl p-8 relative" onclick="event.stopPropagation()">
+            <div class="flex items-start justify-between mb-6">
+                <div>
+                    <p class="text-sm text-blue-300 font-medium">Editing Function</p>
+                    <h3 id="functionEditorTitle" class="text-2xl font-semibold text-white">Function Name</h3>
+                </div>
+                <button class="text-gray-400 hover:text-white transition" onclick="closeFunctionEditor()">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="space-y-5">
+                <div>
+                    <label for="functionDescriptionInput" class="text-sm font-medium text-gray-300 mb-2 block">Description</label>
+                    <textarea id="functionDescriptionInput" class="w-full rounded-xl bg-white/5 border border-white/10 text-white p-4 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 transition min-h-[90px]" placeholder="Describe what this function does"></textarea>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <label for="functionParametersInput" class="text-sm font-medium text-gray-300">Parameters (JSON Schema)</label>
+                        <span class="text-xs text-gray-400">Provide valid JSON describing the parameters object</span>
+                    </div>
+                    <textarea id="functionParametersInput" class="code-font w-full rounded-xl bg-black/60 border border-white/10 text-blue-100 p-4 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 transition min-h-[240px]" spellcheck="false" placeholder='{ "type": "object", "properties": {} }'></textarea>
+                </div>
+                <p id="functionEditorError" class="text-sm text-red-300 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 hidden"></p>
+            </div>
+
+            <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+                <button id="resetFunctionButton" class="text-sm text-red-300 hover:text-red-200 border border-red-500/40 rounded-lg px-4 py-2 transition" onclick="handleFunctionReset()">
+                    Reset to default
+                </button>
+                <div class="flex items-center gap-3">
+                    <button class="text-sm text-gray-300 hover:text-white border border-white/20 rounded-lg px-4 py-2 transition" onclick="closeFunctionEditor()">
+                        Cancel
+                    </button>
+                    <button id="saveFunctionButton" class="text-sm bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg px-5 py-2.5 font-medium flex items-center gap-2 hover:opacity-90 transition" onclick="handleFunctionSave()">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Initialize
         let editor;
         let currentConfig = {};
+        let currentFunctions = [];
+        let activeFunction = null;
+        let functionEditorBusy = false;
         
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
@@ -512,12 +560,14 @@
         }
         
         function loadFunctions(functions) {
+            currentFunctions = functions;
             const grid = document.getElementById('functionsGrid');
             grid.innerHTML = '';
             
             functions.forEach(func => {
                 const card = document.createElement('div');
                 card.className = 'function-card holographic-card rounded-lg p-6';
+                card.addEventListener('click', () => openFunctionEditor(func));
                 
                 const requiredParams = func.parameters?.required || [];
                 const allParams = Object.keys(func.parameters?.properties || {});
@@ -570,6 +620,128 @@
             });
             
             lucide.createIcons();
+        }
+
+        function openFunctionEditor(func) {
+            const overlay = document.getElementById('functionEditorOverlay');
+            if (!overlay) return;
+            activeFunction = func;
+            const descriptionInput = document.getElementById('functionDescriptionInput');
+            const parametersInput = document.getElementById('functionParametersInput');
+            const title = document.getElementById('functionEditorTitle');
+            descriptionInput.value = func.description || '';
+            try {
+                parametersInput.value = JSON.stringify(func.parameters || {}, null, 2);
+            } catch {
+                parametersInput.value = '{\n  "type": "object"\n}';
+            }
+            title.textContent = func.name;
+            hideFunctionEditorError();
+            overlay.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeFunctionEditor() {
+            const overlay = document.getElementById('functionEditorOverlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+            }
+            activeFunction = null;
+            setFunctionEditorBusy(false);
+        }
+
+        function showFunctionEditorError(message) {
+            const el = document.getElementById('functionEditorError');
+            if (!el) return;
+            el.textContent = message;
+            el.classList.remove('hidden');
+        }
+
+        function hideFunctionEditorError() {
+            const el = document.getElementById('functionEditorError');
+            if (!el) return;
+            el.classList.add('hidden');
+            el.textContent = '';
+        }
+
+        function setFunctionEditorBusy(isBusy) {
+            functionEditorBusy = isBusy;
+            const saveBtn = document.getElementById('saveFunctionButton');
+            const resetBtn = document.getElementById('resetFunctionButton');
+            if (saveBtn) {
+                saveBtn.disabled = isBusy;
+                saveBtn.classList.toggle('opacity-60', isBusy);
+            }
+            if (resetBtn) {
+                resetBtn.disabled = isBusy;
+                resetBtn.classList.toggle('opacity-60', isBusy);
+            }
+        }
+
+        async function handleFunctionSave() {
+            if (!activeFunction || functionEditorBusy) return;
+            const descriptionInput = document.getElementById('functionDescriptionInput');
+            const parametersInput = document.getElementById('functionParametersInput');
+            let parsedParameters;
+            try {
+                parsedParameters = JSON.parse(parametersInput.value || '{}');
+            } catch (error) {
+                showFunctionEditorError('Parameters must be valid JSON. ' + error.message);
+                return;
+            }
+
+            hideFunctionEditorError();
+            setFunctionEditorBusy(true);
+            try {
+                const response = await fetch(`/admin/functions/${encodeURIComponent(activeFunction.name)}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        description: descriptionInput.value || '',
+                        parameters: parsedParameters,
+                    }),
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to update function schema');
+                }
+                showMessage(`${activeFunction.name} updated`, 'success');
+                closeFunctionEditor();
+                await loadConfiguration();
+            } catch (error) {
+                console.error('Failed to update function schema:', error);
+                showFunctionEditorError(error.message || 'Failed to update function schema');
+            } finally {
+                setFunctionEditorBusy(false);
+            }
+        }
+
+        async function handleFunctionReset() {
+            if (!activeFunction || functionEditorBusy) return;
+            if (!confirm(`Reset ${activeFunction.name} to its default schema?`)) {
+                return;
+            }
+            hideFunctionEditorError();
+            setFunctionEditorBusy(true);
+            try {
+                const response = await fetch(`/admin/functions/${encodeURIComponent(activeFunction.name)}`, {
+                    method: 'DELETE',
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || 'Failed to reset function schema');
+                }
+                showMessage(`${activeFunction.name} reset to default`, 'success');
+                closeFunctionEditor();
+                await loadConfiguration();
+            } catch (error) {
+                console.error('Failed to reset function schema:', error);
+                showFunctionEditorError(error.message || 'Failed to reset function schema');
+            } finally {
+                setFunctionEditorBusy(false);
+            }
         }
 
         function populateVoiceOptions(voices) {
@@ -640,6 +812,15 @@
                     const newVoice = e.target.value;
                     if (newVoice) {
                         updateVoice(newVoice);
+                    }
+                });
+            }
+
+            const functionOverlay = document.getElementById('functionEditorOverlay');
+            if (functionOverlay) {
+                functionOverlay.addEventListener('click', (event) => {
+                    if (event.target === functionOverlay) {
+                        closeFunctionEditor();
                     }
                 });
             }
